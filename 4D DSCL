@@ -1,0 +1,224 @@
+#include <iostream>
+#include <vector>
+#include <random>
+#include <cmath>
+#include <bitset>
+
+// Structure to represent a lattice symbol with value
+struct LatticeSymbol {
+    double value;  // Value at the lattice point
+};
+
+// Function to create a 4-dimensional lattice using the Diamond-Square algorithm
+std::vector<std::vector<std::vector<std::vector<LatticeSymbol>>>> createLattice(int size, double roughness) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<double> distribution(-1.0, 1.0);
+
+    // Calculate the lattice size
+    int latticeSize = std::pow(2, size) + 1;
+
+    // Create the 4-dimensional lattice with initial values
+    std::vector<std::vector<std::vector<std::vector<LatticeSymbol>>>> lattice(
+        latticeSize,
+        std::vector<std::vector<std::vector<LatticeSymbol>>>(
+            latticeSize,
+            std::vector<std::vector<LatticeSymbol>>(
+                latticeSize,
+                std::vector<LatticeSymbol>(latticeSize)
+            )
+        )
+    );
+
+    // Set the corner values of the lattice
+    lattice[0][0][0][0].value = 0.0;
+    lattice[0][0][0][latticeSize - 1].value = 0.0;
+    lattice[0][0][latticeSize - 1][0].value = 0.0;
+    lattice[0][0][latticeSize - 1][latticeSize - 1].value = 0.0;
+    lattice[0][latticeSize - 1][0][0].value = 0.0;
+    lattice[0][latticeSize - 1][0][latticeSize - 1].value = 0.0;
+    lattice[0][latticeSize - 1][latticeSize - 1][0].value = 0.0;
+    lattice[0][latticeSize - 1][latticeSize - 1][latticeSize - 1].value = 0.0;
+
+    // Perform the Diamond-Square algorithm
+    int stepSize = latticeSize - 1;
+    double scale = roughness;
+
+    while (stepSize > 1) {
+        int halfStepSize = stepSize / 2;
+
+        // Diamond step
+        for (int a = 0; a < latticeSize - 1; a += stepSize) {
+            for (int b = 0; b < latticeSize - 1; b += stepSize) {
+                for (int c = 0; c < latticeSize - 1; c += stepSize) {
+                    for (int d = 0; d < latticeSize - 1; d += stepSize) {
+                        double average = (
+                            lattice[a][b][c][d].value +
+                            lattice[a + stepSize][b][c][d].value +
+                            lattice[a][b + stepSize][c][d].value +
+                            lattice[a][b][c + stepSize][d].value +
+                            lattice[a][b][c][d + stepSize].value +
+                            lattice[a + stepSize][b + stepSize][c][d].value +
+                            lattice[a][b + stepSize][c + stepSize][d].value +
+                            lattice[a][b][c + stepSize][d + stepSize].value +
+                            lattice[a + stepSize][b][c][d + stepSize].value
+                        );
+
+                        lattice[a + halfStepSize][b + halfStepSize][c + halfStepSize][d + halfStepSize].value = average / 8.0 + distribution(gen) * scale;
+                    }
+                }
+            }
+        }
+
+        // Square step
+        for (int a = 0; a < latticeSize - 1; a += halfStepSize) {
+            for (int b = 0; b < latticeSize - 1; b += halfStepSize) {
+                for (int c = 0; c < latticeSize - 1; c += halfStepSize) {
+                    for (int d = 0; d < latticeSize - 1; d += halfStepSize) {
+                        double average = (
+                            lattice[a][b][c][d].value +
+                            lattice[a + stepSize][b][c][d].value +
+                            lattice[a][b + stepSize][c][d].value +
+                            lattice[a][b][c + stepSize][d].value +
+                            lattice[a][b][c][d + stepSize].value
+                        );
+
+                        average /= 4.0;
+
+                        // Compute the average of the surrounding square vertices
+                        if (a > 0)
+                            average += lattice[a - halfStepSize][b][c][d].value;
+                        if (b > 0)
+                            average += lattice[a][b - halfStepSize][c][d].value;
+                        if (c > 0)
+                            average += lattice[a][b][c - halfStepSize][d].value;
+                        if (d > 0)
+                            average += lattice[a][b][c][d - halfStepSize].value;
+
+                        average /= 4.0;
+
+                        lattice[a][b][c][d + halfStepSize].value = average + distribution(gen) * scale;
+                        lattice[a][b][c + halfStepSize][d].value = average + distribution(gen) * scale;
+                        lattice[a][b + halfStepSize][c][d].value = average + distribution(gen) * scale;
+                        lattice[a + halfStepSize][b][c][d].value = average + distribution(gen) * scale;
+                    }
+                }
+            }
+        }
+
+        // Reduce the step size and scale for the next iteration
+        stepSize = halfStepSize;
+        scale *= roughness;
+    }
+
+    return lattice;
+}
+
+// Function to encrypt a message using the lattice values
+std::vector<char> encryptMessage(const std::vector<std::vector<std::vector<std::vector<LatticeSymbol>>>>& lattice, const std::string& message) {
+    std::vector<char> encryptedMessage;
+
+    for (char c : message) {
+        // Convert the character to its binary representation
+        std::bitset<8> binary(c);
+
+        // Access the lattice element corresponding to the binary values
+        int x = binary[0] == 0 ? 0 : 1;
+        int y = binary[1] == 0 ? 0 : 1;
+        int z = binary[2] == 0 ? 0 : 1;
+        int w = binary[3] == 0 ? 0 : 1;
+
+        // Retrieve the lattice value and convert it back to a character
+        char encryptedChar = static_cast<char>(lattice[x][y][z][w].value);
+        encryptedMessage.push_back(encryptedChar);
+    }
+
+    return encryptedMessage;
+}
+
+// Function to decrypt an encrypted message using the lattice values
+std::string decryptMessage(const std::vector<std::vector<std::vector<std::vector<LatticeSymbol>>>>& lattice, const std::vector<char>& encryptedMessage) {
+    std::string decryptedMessage;
+
+    for (char c : encryptedMessage) {
+        // Find the lattice element with the closest value to the character
+        double closestDistance = std::numeric_limits<double>::max();
+        int x, y, z, w;
+
+        for (int i = 0; i < lattice.size(); i++) {
+            for (int j = 0; j < lattice.size(); j++) {
+                for (int k = 0; k < lattice.size(); k++) {
+                    for (int l = 0; l < lattice.size(); l++) {
+                        double distance = std::abs(lattice[i][j][k][l].value - static_cast<double>(c));
+
+                        if (distance < closestDistance) {
+                            closestDistance = distance;
+                            x = i;
+                            y = j;
+                            z = k;
+                            w = l;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Convert the lattice indices to binary representation
+        std::bitset<4> binaryX(x);
+        std::bitset<4> binaryY(y);
+        std::bitset<4> binaryZ(z);
+        std::bitset<4> binaryW(w);
+
+        // Combine the binary values to obtain the decrypted character
+        std::bitset<8> binaryChar;
+        binaryChar[0] = binaryX[0];
+        binaryChar[1] = binaryY[0];
+        binaryChar[2] = binaryZ[0];
+        binaryChar[3] = binaryW[0];
+        binaryChar[4] = binaryX[1];
+        binaryChar[5] = binaryY[1];
+        binaryChar[6] = binaryZ[1];
+        binaryChar[7] = binaryW[1];
+
+        // Convert the binary representation back to a character
+        char decryptedChar = static_cast<char>(binaryChar.to_ulong());
+        decryptedMessage += decryptedChar;
+    }
+
+    return decryptedMessage;
+}
+
+int main() {
+    int size;
+    double roughness;
+    std::string message;
+
+    // Get user input for lattice size, roughness, and message
+    std::cout << "Enter the size of the lattice (0-4): ";
+    std::cin >> size;
+    std::cout << "Enter the roughness of the lattice (0.0-1.0): ";
+    std::cin >> roughness;
+    std::cout << "Enter the message to encrypt: ";
+    std::cin.ignore();
+    std::getline(std::cin, message);
+
+    // Create the lattice
+    std::vector<std::vector<std::vector<std::vector<LatticeSymbol>>>> lattice = createLattice(size, roughness);
+
+    // Encrypt the message using the lattice values
+    std::vector<char> encryptedMessage = encryptMessage(lattice, message);
+
+    // Decrypt the encrypted message using the lattice values
+    std::string decryptedMessage = decryptMessage(lattice, encryptedMessage);
+
+    // Print the encrypted and decrypted messages
+    std::cout << "Encrypted message: ";
+    for (char c : encryptedMessage) {
+        std::cout << c;
+    }
+    std::cout << std::endl;
+
+    std::cout << "Decrypted message: " << decryptedMessage << std::endl;
+
+    return 0;
+}
