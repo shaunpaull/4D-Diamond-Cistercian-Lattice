@@ -1,4 +1,4 @@
-# 4D-Diamond-Cistercian-Lattice
+# 4D-Diamond-Square-Cistercian-Lattice
 4D Diamond Cistercian Lattice
 
 
